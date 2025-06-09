@@ -1,0 +1,13 @@
+Analyze the sentiment of this product review and provide a detailed response.
+
+Review: "{review_text}"
+
+Please respond in the following JSON format:
+{{
+  "sentiment": "positive/negative/neutral",
+  "confidence": "high/medium/low",
+  "justification": "Brief explanation of why this sentiment was chosen",
+  "key_phrases": ["list", "of", "key", "phrases", "that", "indicate", "sentiment"]
+}}
+
+Only respond with valid JSON, no additional text.
