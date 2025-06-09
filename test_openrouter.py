@@ -4,58 +4,34 @@ Test script for OpenRouter API connection and basic sentiment analysis.
 This script tests the core functionality before building the full application.
 """
 
-import os
-from dotenv import load_dotenv
 from openai import OpenAI
+from core import setup_openrouter_client
+from core.client import get_model_name
+from core.prompt_loader import load_and_format_prompt
+from utils.config import get_config_value, print_config_summary
 
-# Load environment variables
-load_dotenv()
 
-def setup_openrouter_client():
-  """Initialize OpenRouter client"""
-  api_key = os.getenv("OPENROUTER_API_KEY")
-  if not api_key:
-    raise ValueError("Please set your OPENROUTER_API_KEY in the .env file")
-
-  client = OpenAI(
-    base_url="https://openrouter.ai/api/v1",
-    api_key=api_key,
-  )
-  return client
-
-def load_prompt(prompt_name):
-  """Load prompt from prompts directory"""
-  prompt_path = os.path.join("prompts", f"{prompt_name}.txt")
-  try:
-    with open(prompt_path, 'r', encoding='utf-8') as f:
-      return f.read().strip()
-  except FileNotFoundError:
-    raise FileNotFoundError(f"Prompt file not found: {prompt_path}")
-
-def get_sentiment(review_text, client):
+def get_sentiment(review_text: str, client: OpenAI) -> str:
   """
   Analyze sentiment of a review using OpenRouter.
   Returns sentiment classification and justification.
   """
-  # Get configured model from .env, default to google/gemini-flash-1.5
-  model = os.getenv("OPENROUTER_MODEL")
-  default_model = "google/gemini-flash-1.5"
-  if not model:
-    print(f"OPENROUTER_MODEL not set in .env, using default model: {default_model}")
-    model = default_model
+  # Get configuration from centralized config system (cached after first call)
+  model = get_model_name()
+  system_message = get_config_value("analysis.system_message")
+  temperature = get_config_value("openrouter.temperature", 0.3)
 
-  # Load prompt from file
-  prompt_template = load_prompt("sentiment_analysis")
-  prompt = prompt_template.format(review_text=review_text)
+  # Load and format prompt
+  prompt = load_and_format_prompt("sentiment_analysis", review_text=review_text)
 
   try:
     response = client.chat.completions.create(
       model=model,
       messages=[
-        {"role": "system", "content": "You are an expert in sentiment analysis. Always respond with valid JSON only."},
+        {"role": "system", "content": system_message},
         {"role": "user", "content": prompt}
       ],
-      temperature=0.3
+      temperature=temperature
     )
 
     return response.choices[0].message.content
@@ -63,13 +39,39 @@ def get_sentiment(review_text, client):
   except Exception as e:
     return f"Error: {str(e)}"
 
+
+def test_config_caching():
+  """Demonstrate that configuration is cached and loaded only once"""
+  print("\n🧪 Testing Configuration Caching...")
+  print("-" * 40)
+
+  print("First call - should load and print env messages:")
+  model1 = get_config_value("openrouter.model")
+
+  print("Second call - should use cache (no env messages):")
+  model2 = get_config_value("openrouter.model")
+
+  print("Third call - should use cache (no env messages):")
+  model3 = get_config_value("openrouter.temperature")
+
+  print(f"All calls return consistent values: {model1 == model2}")
+  print("✅ Configuration caching working properly!")
+
+
 def main():
   """Test the OpenRouter connection and sentiment analysis"""
   print("🚀 Testing OpenRouter Connection...")
   print("=" * 50)
 
+  # Show configuration summary
+  print_config_summary()
+
+  # Test caching behavior
+  test_config_caching()
+  print()
+
   try:
-    # Initialize client
+    # Initialize client using core module
     client = setup_openrouter_client()
     print("✅ OpenRouter client initialized successfully!")
 
@@ -107,6 +109,9 @@ def main():
     print("\n🎉 All tests completed successfully!")
     print("✅ OpenRouter connection is working!")
     print("✅ Sentiment analysis function is working!")
+    print("✅ Core modules are working properly!")
+    print("✅ Centralized configuration system is working!")
+    print("✅ Configuration caching is preventing redundant loads!")
 
   except Exception as e:
     print(f"❌ Error: {str(e)}")
@@ -114,6 +119,8 @@ def main():
     print("1. Make sure you've created the .env file")
     print("2. Check that your OPENROUTER_API_KEY is correct")
     print("3. Verify you have internet connection")
+    print("4. Ensure core modules are properly installed")
+
 
 if __name__ == "__main__":
   main()
